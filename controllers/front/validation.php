@@ -1,11 +1,16 @@
 <?php
 class VenipakCodValidationModuleFrontController extends ModuleFrontController
 {
-	public $ssl = true;
-	public $display_column_left = false;
-	private $_prefix = 'VENIPAKCOD_';
+    public $ssl = true;
+    private $_prefix = 'VENIPAKCOD_';
 
-	public function postProcess()
+    public function init()
+    {
+        $this->display_column_left = false;
+        parent::init();
+    }
+
+    public function postProcess()
 	{
 		if ($this->context->cart->id_customer == 0 || $this->context->cart->id_address_delivery == 0 || $this->context->cart->id_address_invoice == 0 || !$this->module->active)
 			Tools::redirectLink(__PS_BASE_URI__ . 'order.php?step=1');

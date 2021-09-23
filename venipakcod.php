@@ -22,7 +22,7 @@ class VenipakCod extends PaymentModule
 		parent::__construct();
 
 		$this->displayName = $this->l('Venipak Card on Delivery (COD)');
-		$this->description = $this->l('Accept card on delivery payments');
+		$this->description = $this->l('Accept cash on delivery payments');
 	}
 
 	public function install()
@@ -62,9 +62,7 @@ class VenipakCod extends PaymentModule
 
 	public function getContent()
 	{
-
 		$output = '';
-
 		if (Tools::isSubmit('submit' . $this->name)) {
 			$output .= $this->postProcess();
 		}
@@ -78,15 +76,6 @@ class VenipakCod extends PaymentModule
 		$defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
 
 		$carriers = Carrier::getCarriers($defaultLang, false, false, false, null, 0); //array();
-		$venipak_pp_ref = (int) Configuration::get('VENIPAK_PICKUP_POINT_ID_REFERENCE');
-
-		// remove venipak pickup point as cod is not available for it
-		foreach ($carriers as $key => $mod) {
-			if ($mod['id_reference'] == $venipak_pp_ref) {
-				unset($carriers[$key]);
-				break;
-			}
-		}
 
 		// Init Fields form array
 		$fieldsForm[0]['form'] = [
@@ -272,6 +261,7 @@ class VenipakCod extends PaymentModule
 			return false;
 
 		$smarty->assign(array(
+            'title' => $this->l('Venipak COD'),
 			'cod_fee' => Tools::displayPrice(Tools::convertPrice($this->getCodFee($params['cart']))),
 			'this_path' => $this->_path, //keep for retro compat
 			'this_path_cod' => $this->_path,
@@ -283,14 +273,6 @@ class VenipakCod extends PaymentModule
 	public function isCarrierAllowed($id_carrier)
 	{
 		$carrier = new Carrier((int) $id_carrier);
-
-		$venipak_pp_ref = (int) Configuration::get('VENIPAK_PICKUP_POINT_ID_REFERENCE');
-
-		// ignore venipak pickup points
-		if ($venipak_pp_ref && $venipak_pp_ref == $carrier->id_reference) {
-			return false;
-		}
-
 		$enabled_carriers = explode(',', Configuration::get($this->_prefix . 'CARRIERS'));
 
 		// if nothing selected allow all carriers
@@ -314,8 +296,8 @@ class VenipakCod extends PaymentModule
 			return false;
 
 		return array(
-			'cta_text' => $this->l('Pay with card on delivery (COD)'),
-			'logo' => Media::getMediaPath(dirname(__FILE__) . '/venipak.jpg'),
+			'cta_text' => $this->l('Pay with cash on delivery (COD)'),
+			'logo' => Media::getMediaPath(dirname(__FILE__) . '/logo.png'),
 			'action' => $this->context->link->getModuleLink($this->name, 'validation', array('confirm' => true), true)
 		);
 	}

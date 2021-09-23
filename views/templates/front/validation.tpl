@@ -24,10 +24,12 @@
 *}
 
 {capture name=path}
-	<a href="{$link->getPageLink('order', true, NULL, "step=3")|escape:'html':'UTF-8'}" rel="nofollow" title="{l s='Go back to the Checkout' mod='venipakcod'}">{l s='Checkout' mod='venipakcod'}</a><span class="navigation-pipe">{$navigationPipe}</span>{l s='Venipak card on delivery (COD) payment' mod='venipakcod'}
+	<a href="{$link->getPageLink('order', true, NULL, "step=3")|escape:'html':'UTF-8'}" rel="nofollow" title="{l s='Go back to the Checkout' mod='venipakcod'}">
+		{l s='Checkout' mod='venipakcod'}
+	</a>
+	<span class="navigation-pipe">{$navigationPipe}</span>
+	{l s='Venipak card on delivery (COD) payment' mod='venipakcod'}
 {/capture}
-
-{include file="$tpl_dir./breadcrumb.tpl"}
 
 <h2>{l s='Order summary' mod='venipakcod'}</h2>
 
