@@ -4,7 +4,7 @@
 			<a class="venipakcod" href="{$link->getModuleLink('venipakcod', 'validation', [], true)|escape:'html'}"
 				title="{l s=$title mod='venipakcod'}" rel="nofollow"
 				style="background: url({$this_path_cod}logo.png) 15px 35px no-repeat #fbfbfb; background-size: 60px;">
-				{l s='Pay with card on delivery (COD)' mod='venipakcod'}
+				{l s='Pay with cash on delivery (COD)' mod='venipakcod'}
 				{if $cod_fee}
 				<br />{l s='COD fee is' mod='venipakcod'} {$cod_fee}
 				<br />{l s='Fee will be added to shipping fee upon order confirmation' mod='venipakcod'}

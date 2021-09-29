@@ -31,7 +31,7 @@ class VenipakCodAjaxModuleFrontController extends ModuleFrontController
                     ]
                 );
                 die(json_encode([
-                    'error' => $this->module->l('Your selected terminal does not support C.O.D payment method. Please select another terminal'),
+                    'error' => $this->module->l('Your selected terminal does not support C.O.D payment method. Please select another terminal', 'Ajax'),
                     'carrier_content' => $content,
                     'mjvp_map_template' => $this->context->smarty->fetch(MijoraVenipak::$_moduleDir . 'views/templates/front/map-template.tpl'),
                 ]));

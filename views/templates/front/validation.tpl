@@ -28,7 +28,7 @@
 		{l s='Checkout' mod='venipakcod'}
 	</a>
 	<span class="navigation-pipe">{$navigationPipe}</span>
-	{l s='Venipak card on delivery (COD) payment' mod='venipakcod'}
+	{l s='Venipak cash on delivery (COD) payment' mod='venipakcod'}
 {/capture}
 
 <h2>{l s='Order summary' mod='venipakcod'}</h2>
@@ -36,14 +36,14 @@
 {assign var='current_step' value='payment'}
 {include file="$tpl_dir./order-steps.tpl"}
 
-<h3>{l s='Venipak card on delivery (COD) payment' mod='venipakcod'}</h3>
+<h3>{l s='Venipak cash on delivery (COD) payment' mod='venipakcod'}</h3>
 
 <form action="{$link->getModuleLink('venipakcod', 'validation', [], true)|escape:'html'}" method="post">
 	<input type="hidden" name="confirm" value="1" />
 	<p>
-		<img src="{$this_path_cod}logo.png" alt="{l s='Venipak card on delivery (COD) payment' mod='venipakcod'}"
+		<img src="{$this_path_cod}logo.png" alt="{l s='Venipak cash on delivery (COD) payment' mod='venipakcod'}"
 		style="float:left; margin: 0px 10px 5px 0px; height: 33px;" />
-		{l s='You have chosen Venipak card on Delivery method.' mod='venipakcod'}
+		{l s='You have chosen Venipak cash on Delivery method.' mod='venipakcod'}
 		<br/><br />
 		{l s='The total amount of your order is' mod='venipakcod'}
 		<span id="amount_{$currencies.0.id_currency}" class="price">{convertPrice price=$total}</span>

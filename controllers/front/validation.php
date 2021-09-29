@@ -46,39 +46,12 @@ class VenipakCodValidationModuleFrontController extends ModuleFrontController
 
 		$this->context->smarty->assign(array(
 			'total' => $this->context->cart->getOrderTotal(true, Cart::BOTH),
-			'cod_fee' => (float) $this->getCodFee((float) $this->context->cart->getOrderTotal(false, Cart::BOTH_WITHOUT_SHIPPING)),
+			'cod_fee' => (float) $this->module->getCodFee($this->context->cart),
 			'this_path' => $this->module->getPathUri(), //keep for retro compat
 			'this_path_cod' => $this->module->getPathUri(),
 			'this_path_ssl' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . 'modules/' . $this->module->name . '/'
 		));
 
 		$this->setTemplate('validation.tpl');
-	}
-
-	/**
-	 * Return calculated fee or false if not within range
-	 * @param float $cart_total	Cart Total
-	 * 
-	 * @return bool|float
-	 */
-	public function getCodFee($cart_total)
-	{
-		$min = (float) Configuration::get($this->_prefix . 'TOTAL_MIN');
-		$max = (float) Configuration::get($this->_prefix . 'TOTAL_MAX');
-
-		// if min or max is set (not 0) check total is within range
-		if (($min && (float) $cart_total < $min) || ($max && (float) $cart_total > $max)) {
-			return false;
-		}
-
-		if (Configuration::get($this->_prefix . 'FEE_TYPE')) {
-			// percentile fee
-			$fee = (float) $cart_total * ((float) Configuration::get($this->_prefix . 'FEE_PERC') / 100);
-		} else {
-			// flat fee
-			$fee = (float) Configuration::get($this->_prefix . 'FEE_FLAT');
-		}
-
-		return $fee > 0 ? $fee : false;
 	}
 }

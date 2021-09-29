@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
 	<name>venipakcod</name>
-	<displayName><![CDATA[Venipak Card on Delivery (COD)]]></displayName>
+	<displayName><![CDATA[Venipak Cash on Delivery (COD)]]></displayName>
 	<version><![CDATA[1.0.1]]></version>
-	<description><![CDATA[Accept card on delivery payments]]></description>
+	<description><![CDATA[Accept cash on delivery payments]]></description>
 	<author><![CDATA[Mijora]]></author>
 	<tab><![CDATA[payments_gateways]]></tab>
 	<is_configurable>1</is_configurable>

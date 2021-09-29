@@ -13,7 +13,7 @@ class VenipakCod extends PaymentModule
 		$this->version = '1.0.2';
 		$this->author = 'Mijora';
 		$this->need_instance = 1;
-		$this->controllers = array('validation');
+		$this->controllers = array('validation', 'payment');
 		$this->is_eu_compatible = 1;
 
 		$this->currencies = false;
@@ -21,13 +21,14 @@ class VenipakCod extends PaymentModule
 
 		parent::__construct();
 
-		$this->displayName = $this->l('Venipak Card on Delivery (COD)');
+		$this->displayName = $this->l('Venipak Cash on Delivery (COD)');
 		$this->description = $this->l('Accept cash on delivery payments');
 	}
 
 	public function install()
 	{
-		if (!parent::install() or !$this->registerHook('payment') or !$this->registerHook('displayPaymentEU') or !$this->registerHook('paymentReturn') or !$this->registerHook('header'))
+		if (!parent::install() or !$this->registerHook('payment') or !$this->registerHook('displayPaymentEU')
+            or !$this->registerHook('paymentReturn') or !$this->registerHook('header') or !$this->registerHook('paymentOptions'))
 			return false;
 
 		Configuration::updateValue('VENIPAKCOD_STATUS', '1');
@@ -248,9 +249,20 @@ class VenipakCod extends PaymentModule
 
 	public function hookDisplayHeader($params)
     {
-        $venipakModule = Module::getInstanceByName('mijoravenipak');
-        if (($this->context->controller->php_self == 'order' && isset($this->context->controller->step) && $this->context->controller->step == 3) ||  $this->context->controller->php_self == 'order-opc')
+        $add_content = false;
+        if(version_compare(_PS_VERSION_, '1.7', '>='))
         {
+            $add_content = $this->context->controller->php_self == 'order' && $this->context->controller->getCheckoutProcess()->getSteps()[3]->isCurrent();
+        }
+        // 1.6
+        else
+        {
+            $add_content = ($this->context->controller->php_self == 'order' && isset($this->context->controller->step) && $this->context->controller->step == 3) ||  $this->context->controller->php_self == 'order-opc';
+        }
+        if ($add_content)
+        {
+            $venipakModule = Module::getInstanceByName('mijoravenipak');
+
             $address = new Address($params['cart']->id_address_delivery);
             $filter = [];
             if($this->context->controller->php_self != 'order-opc')
@@ -293,9 +305,12 @@ class VenipakCod extends PaymentModule
             // 1.7
             if(version_compare(_PS_VERSION_, '1.7', '>='))
             {
+                $this->context->smarty->assign(
+                    ['images_url' => $this->_path . 'views/images/']
+                );
                 $this->context->controller->registerJavascript('payment-terminal', 'modules/' . $this->name . '/views/js/payment-terminal.js');
                 Media::addJsDef([
-                        'mjvp_map_template' => $this->context->smarty->fetch(__DIR__ . 'views/templates/front/map-template.tpl'),
+                        'mjvp_map_template' => $this->context->smarty->fetch(__DIR__ . '/views/templates/front/map-template.tpl'),
                     ]
                 );
                 $this->context->controller->registerJavascript('modules-mjvp-terminals-mapping-js', 'modules/' . $this->name . '/views/js/terminal-mapping.js');
@@ -317,27 +332,54 @@ class VenipakCod extends PaymentModule
 
 	public function hookPayment($params)
 	{
-		if (!$this->active)
-			return;
+        if (!$this->active)
+            return;
 
-		if (!$this->isCarrierAllowed($params['cart']->id_carrier))
-			return;
+        if (!$this->isCarrierAllowed($params['cart']->id_carrier))
+            return;
 
-		global $smarty;
+        global $smarty;
 
-		// Check if cart has product download
-		if ($this->hasProductDownload($params['cart']))
-			return false;
+        // Check if cart has product download
+        if ($this->hasProductDownload($params['cart']))
+            return false;
 
-		$smarty->assign(array(
+        $smarty->assign($this->getTemplateVarInfos($params));
+        return $this->display(__FILE__, 'payment.tpl');
+        }
+
+	public function hookPaymentOptions($params)
+    {
+        if (!$this->active || !$this->isCarrierAllowed($params['cart']->id_carrier)) {
+            return [];
+        }
+        $this->smarty->assign(
+            $this->getTemplateVarInfos($params)
+        );
+
+        $newOption = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
+        $newOption->setModuleName($this->name)
+            ->setCallToActionText($this->l('Pay with cash on delivery (COD)'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'payment', array(), true))
+            ->setAdditionalInformation($this->l('You will be able to pay with bank cash on delivery.'))
+            ->setLogo(Media::getMediaPath(dirname(__FILE__) . '/views/images/logo_small.png'));
+        $payment_options = [
+            $newOption,
+        ];
+
+        return $payment_options;
+    }
+
+	public function getTemplateVarInfos($params)
+    {
+        return [
             'title' => $this->l('Venipak COD'),
-			'cod_fee' => Tools::displayPrice(Tools::convertPrice($this->getCodFee($params['cart']))),
-			'this_path' => $this->_path, //keep for retro compat
-			'this_path_cod' => $this->_path,
-			'this_path_ssl' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . 'modules/' . $this->name . '/'
-		));
-		return $this->display(__FILE__, 'payment.tpl');
-	}
+            'cod_fee' => Tools::displayPrice(Tools::convertPrice($this->getCodFee($params['cart']))),
+            'this_path' => $this->_path, //keep for retro compat
+            'this_path_cod' => $this->_path,
+            'this_path_ssl' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . 'modules/' . $this->name . '/'
+        ];
+    }
 
 	public function isCarrierAllowed($id_carrier)
 	{
@@ -354,27 +396,43 @@ class VenipakCod extends PaymentModule
 
 	public function hookDisplayPaymentEU($params)
 	{
-		if (!$this->active)
-			return;
+        // 1.7
+        if(version_compare(_PS_VERSION_, '1.7', '>='))
+        {
+            if (!$this->active) {
+                return [];
+            }
+            return [];
+        }
+        // 1.6
+        else
+        {
+            if (!$this->active)
+                return;
 
-		if (!$this->isCarrierAllowed($params['cart']->id_carrier))
-			return;
+            if (!$this->isCarrierAllowed($params['cart']->id_carrier))
+                return;
 
-		// Check if cart has product download
-		if ($this->hasProductDownload($params['cart']))
-			return false;
+            // Check if cart has product download
+            if ($this->hasProductDownload($params['cart']))
+                return false;
 
-		return array(
-			'cta_text' => $this->l('Pay with cash on delivery (COD)'),
-			'logo' => Media::getMediaPath(dirname(__FILE__) . '/logo.png'),
-			'action' => $this->context->link->getModuleLink($this->name, 'validation', array('confirm' => true), true)
-		);
+            return array(
+                'cta_text' => $this->l('Pay with cash on delivery (COD)'),
+                'logo' => Media::getMediaPath(dirname(__FILE__) . '/logo.png'),
+                'action' => $this->context->link->getModuleLink($this->name, 'validation', array('confirm' => true), true)
+            );
+        }
 	}
 
 	public function hookPaymentReturn($params)
 	{
 		if (!$this->active)
 			return;
+
+        $this->smarty->assign(array(
+            'shop_name' => $this->context->shop->name,
+        ));
 
 		return $this->display(__FILE__, 'confirmation.tpl');
 	}
@@ -386,7 +444,7 @@ class VenipakCod extends PaymentModule
 	 * @param integer $id_cart Value
 	 * @param integer $id_order_state Value
 	 * @param float $amount_paid Amount really paid by customer (in the default currency)
-	 * @param string $payment_method Payment method (eg. 'Credit card')
+	 * @param string $payment_method Payment method (eg. 'Credit cash')
 	 * @param string $message Message to attach to order
 	 */
 	public function validateOrder(

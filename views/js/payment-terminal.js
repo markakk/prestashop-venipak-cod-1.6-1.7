@@ -51,7 +51,6 @@ $(document).on('ready', () => {
     else
     {
         codEventListener();
-
     }
 });
 
@@ -184,8 +183,13 @@ function mjvp_registerSelection(selected_field_id, ajaxData = {}, params = {}) {
 
     if(terminal.cod_enabled == 1)
     {
+        // 1.6
         $('.venipak-service-content').remove();
         $('.venipakcod .alert').remove();
+        // 1.7
+        var venipakCodeElement = $('[data-module-name="venipakcod"]');
+        venipakCodeElement.closest('.payment-options').find('.additional-information .alert').remove();
+        $('#conditions-to-approve input[type="checkbox"]').removeAttr('disabled');
     }
 
     $.ajax(mjvp_front_controller_url,
@@ -216,3 +220,47 @@ function mjvp_registerSelection(selected_field_id, ajaxData = {}, params = {}) {
             }
         });
 }
+
+// 1.7
+$(document).on('ready', () => {
+    var venipakCodeElement = $('[data-module-name="venipakcod"]');
+    var additionalInfoElement = venipakCodeElement.closest('.payment-options').find('.additional-information');
+    venipakCodeElement.on('click', () => {
+        $('.venipak-service-content').remove();
+        additionalInfoElement.find('.alert').remove();
+        $(".mjvp-pickup-filter").unbind('click');
+        $.ajax({
+            type: "POST",
+            url: cod_ajax_url,
+            dataType: "json",
+            success: function (res) {
+                if(typeof res.carrier_content != 'undefined' && typeof res.mjvp_map_template != 'undefined' && res.carrier_content)
+                {
+                    var error = '';
+                    var tosEl = $('#conditions-to-approve input[type="checkbox"]');
+                    tosEl.attr('disabled', true);
+                    $('#payment-confirmation button').attr('disabled', true);
+                    tosEl.removeAttr('checked');
+                    if(typeof res.error != 'undefined')
+                    {
+                        error = `<div class="alert alert-danger">${res.error}</div>`;
+                    }
+                    additionalInfoElement.append(error);
+                    mjvp_map_template = res.mjvp_map_template;
+                    additionalInfoElement.append(`
+                        <div class="venipak-service-content">
+                            ${res.carrier_content}
+                        </div>`);
+                    venipak_custom_modal();
+                    filterEventListener();
+                }
+            },
+        });
+    });
+
+    // When non Venipak COD payment method is selected, we remove the artificial TOS disable and error message.
+    $("input[id^='payment-option']:not([data-module-name='venipakcod'])").on('click', () => {
+        $('#conditions-to-approve input[type="checkbox"]').removeAttr('disabled');
+        $('[data-module-name="venipakcod"]').closest('.payment-options').find('.alert').remove();
+    });
+})
