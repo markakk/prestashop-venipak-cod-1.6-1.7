@@ -1,52 +1,24 @@
 $(document).on('ready', () => {
+    // Trying to handle opc disaster...
     if(typeof page_name != "undefined" && page_name == 'order-opc')
     {
-        $( document ).ajaxComplete(function( event, xhr, settings ) {
-            if ( settings.data.includes('updateTOSStatusAndGetPayments&checked=1')) {
-                codEventListener();
-                $.ajax({
-                    type: "POST",
-                    url: mjvp_front_controller_url + "?ajax=1&submitFilterTerminals=1&action=filter",
-                    dataType: "json",
-                    data: {
-                        'filter_keys' : {'cod_enabled' : 1}
-                    },
-                    success: function (res) {
-                        venipak_custom_modal.tmjs.dom.removeOverlay();
-                        if(typeof res.mjvp_terminals != "undefined")
-                        {
-                            var terminals = [];
-                            mjvp_terminals = res.mjvp_terminals;
-                            mjvp_terminals.forEach((terminal) => {
-                                if(terminal.lat != 0 && terminal.lng != 0 && terminal.terminal)
-                                {
-                                    terminal['coords'] = {
-                                        lat: terminal.lat,
-                                        lng: terminal.lng
-                                    };
-                                    // Pickup type
-                                    if(terminal.type == 1)
-                                        terminal['identifier'] = 'venipak-pickup';
-                                    // Locker type
-                                    else if(terminal.type == 3)
-                                        terminal['identifier'] = 'venipak-locker';
-                                    terminals.push(terminal);
-                                }
-                            });
-                            if(terminals.length == 0)
-                            {
-                                venipak_custom_modal.tmjs.map._markerLayer.clearLayers();
-                            }
-                            else
-                            {
-                                venipak_custom_modal.tmjs.setTerminals(terminals);
-                                venipak_custom_modal.tmjs.dom.renderTerminalList(venipak_custom_modal.tmjs.map.locations);
-                            }
-                        }
-                    },
-                });
-            }
-        });
+        // If TOS is checked, the payment blocks are already visible, so we bind the event on page load..
+        if($('.payment_module').length != 0)
+        {
+            codEventListener();
+            filterTerminalsAjax({'cod_enabled' : 1});
+        }
+        // Otherwise, we bind event only after payments are loaded with Ajax..
+        else
+        {
+            $( document ).ajaxComplete(function( event, xhr, settings ) {
+                if ( settings.data.includes('updateTOSStatusAndGetPayments&checked=1')) {
+                    codEventListener();
+                    // Additionally, run filter to get only COD terminals
+                    filterTerminalsAjax({'cod_enabled' : 1});
+                }
+            });
+        }
     }
     else
     {
@@ -123,47 +95,52 @@ function filterEventListener()
         selectedFilters['cod_enabled'] = 1;
 
         $('.mjvp-pickup-filter').removeClass('active');
-        $.ajax({
-            type: "POST",
-            url: mjvp_front_controller_url + "?ajax=1&submitFilterTerminals=1&action=filter",
-            dataType: "json",
-            data: {
-                'filter_keys' : selectedFilters
-            },
-            success: function (res) {
-                venipak_custom_modal.tmjs.dom.removeOverlay();
-                if(typeof res.mjvp_terminals != "undefined")
+        filterTerminalsAjax(selectedFilters);
+    });
+}
+
+function filterTerminalsAjax(filters)
+{
+    $.ajax({
+        type: "POST",
+        url: mjvp_front_controller_url + "?ajax=1&submitFilterTerminals=1&action=filter",
+        dataType: "json",
+        data: {
+            'filter_keys' : filters
+        },
+        success: function (res) {
+            venipak_custom_modal.tmjs.dom.removeOverlay();
+            if(typeof res.mjvp_terminals != "undefined")
+            {
+                var terminals = [];
+                mjvp_terminals = res.mjvp_terminals;
+                mjvp_terminals.forEach((terminal) => {
+                    if(terminal.lat != 0 && terminal.lng != 0 && terminal.terminal)
+                    {
+                        terminal['coords'] = {
+                            lat: terminal.lat,
+                            lng: terminal.lng
+                        };
+                        // Pickup type
+                        if(terminal.type == 1)
+                            terminal['identifier'] = 'venipak-pickup';
+                        // Locker type
+                        else if(terminal.type == 3)
+                            terminal['identifier'] = 'venipak-locker';
+                        terminals.push(terminal);
+                    }
+                });
+                if(terminals.length == 0)
                 {
-                    var terminals = [];
-                    mjvp_terminals = res.mjvp_terminals;
-                    mjvp_terminals.forEach((terminal) => {
-                        if(terminal.lat != 0 && terminal.lng != 0 && terminal.terminal)
-                        {
-                            terminal['coords'] = {
-                                lat: terminal.lat,
-                                lng: terminal.lng
-                            };
-                            // Pickup type
-                            if(terminal.type == 1)
-                                terminal['identifier'] = 'venipak-pickup';
-                            // Locker type
-                            else if(terminal.type == 3)
-                                terminal['identifier'] = 'venipak-locker';
-                            terminals.push(terminal);
-                        }
-                    });
-                    if(terminals.length == 0)
-                    {
-                        venipak_custom_modal.tmjs.map._markerLayer.clearLayers();
-                    }
-                    else
-                    {
-                        venipak_custom_modal.tmjs.setTerminals(terminals);
-                        venipak_custom_modal.tmjs.dom.renderTerminalList(venipak_custom_modal.tmjs.map.locations);
-                    }
+                    venipak_custom_modal.tmjs.map._markerLayer.clearLayers();
                 }
-            },
-        });
+                else
+                {
+                    venipak_custom_modal.tmjs.setTerminals(terminals);
+                    venipak_custom_modal.tmjs.dom.renderTerminalList(venipak_custom_modal.tmjs.map.locations);
+                }
+            }
+        },
     });
 }
 
@@ -181,7 +158,7 @@ function mjvp_registerSelection(selected_field_id, ajaxData = {}, params = {}) {
     });
     ajaxData.terminal = terminal;
 
-    if(terminal.cod_enabled == 1)
+    if(terminal && terminal.cod_enabled == 1)
     {
         // 1.6
         $('.venipak-service-content').remove();
