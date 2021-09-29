@@ -1,7 +1,7 @@
 <div class="row">
 	<div class="col-xs-12">
 		<p class="payment_module">
-			<a class="cash" href="{$link->getModuleLink('venipakcod', 'validation', [], true)|escape:'html'}"
+			<a class="venipakcod" href="{$link->getModuleLink('venipakcod', 'validation', [], true)|escape:'html'}"
 				title="{l s=$title mod='venipakcod'}" rel="nofollow"
 				style="background: url({$this_path_cod}logo.png) 15px 35px no-repeat #fbfbfb; background-size: 60px;">
 				{l s='Pay with card on delivery (COD)' mod='venipakcod'}

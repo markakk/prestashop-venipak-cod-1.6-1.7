@@ -27,7 +27,7 @@ class VenipakCod extends PaymentModule
 
 	public function install()
 	{
-		if (!parent::install() or !$this->registerHook('payment') or !$this->registerHook('displayPaymentEU') or !$this->registerHook('paymentReturn'))
+		if (!parent::install() or !$this->registerHook('payment') or !$this->registerHook('displayPaymentEU') or !$this->registerHook('paymentReturn') or !$this->registerHook('header'))
 			return false;
 
 		Configuration::updateValue('VENIPAKCOD_STATUS', '1');
@@ -245,6 +245,75 @@ class VenipakCod extends PaymentModule
 
 		return $fee > 0 ? $fee : false;
 	}
+
+	public function hookDisplayHeader($params)
+    {
+        $venipakModule = Module::getInstanceByName('mijoravenipak');
+        if (($this->context->controller->php_self == 'order' && isset($this->context->controller->step) && $this->context->controller->step == 3) ||  $this->context->controller->php_self == 'order-opc')
+        {
+            $address = new Address($params['cart']->id_address_delivery);
+            $filter = [];
+            if($this->context->controller->php_self != 'order-opc')
+                $filter = ['cod_enabled' => 1];
+            $filtered_terminals = $venipakModule->getFilteredTerminals($filter);
+
+            $address_query = $address->address1 . ' ' . $address->postcode . ', ' . $address->city;
+            Media::addJsDef(array(
+                    'cod_ajax_url' => $this->context->link->getModuleLink($this->name, 'ajax'),
+                    'mjvp_front_controller_url' => $this->context->link->getModuleLink($venipakModule->name, 'front'),
+                    'address_query' => $address_query,
+                    'mjvp_translates' => array(
+                        'loading' => $this->l('Loading'),
+                    ),
+                    'images_url' => $this->_path . 'views/images/',
+                    'mjvp_terminal_select_translates' => array(
+                        'modal_header' => $this->l('Pickup points map'),
+                        'terminal_list_header' => $this->l('Pickup points list'),
+                        'seach_header' => $this->l('Search around'),
+                        'search_btn' => $this->l('Find'),
+                        'modal_open_btn' => $this->l('Select a pickup point'),
+                        'geolocation_btn' => $this->l('Use my location'),
+                        'your_position' => $this->l('Distance calculated from this point'),
+                        'nothing_found' => $this->l('Nothing found'),
+                        'no_cities_found' => $this->l('There were no cities found for your search term'),
+                        'geolocation_not_supported' => $this->l('Geolocation is not supported'),
+                        'select_pickup_point' => $this->l('Select a pickup point'),
+                        'search_placeholder' => $this->l('Enter postcode/address'),
+                        'workhours_header' => $this->l('Workhours'),
+                        'contacts_header' => $this->l('Contacts'),
+                        'no_pickup_points' => $this->l('No points to select'),
+                        'select_btn' => $this->l('select'),
+                        'back_to_list_btn' => $this->l('reset search'),
+                        'no_information' => $this->l('No information'),
+                    ),
+                    'mjvp_terminals' => $filtered_terminals
+                )
+            );
+
+            // 1.7
+            if(version_compare(_PS_VERSION_, '1.7', '>='))
+            {
+                $this->context->controller->registerJavascript('payment-terminal', 'modules/' . $this->name . '/views/js/payment-terminal.js');
+                Media::addJsDef([
+                        'mjvp_map_template' => $this->context->smarty->fetch(__DIR__ . 'views/templates/front/map-template.tpl'),
+                    ]
+                );
+                $this->context->controller->registerJavascript('modules-mjvp-terminals-mapping-js', 'modules/' . $this->name . '/views/js/terminal-mapping.js');
+                $this->context->controller->registerJavascript('modules-mjvp-terminals-mapinit-js', 'modules/' . $this->name . '/views/js/terminals_map_init.js');
+
+            }
+            // 1.6
+            else
+            {
+                $this->context->controller->addJS('modules/' . $this->name . '/views/js/payment-terminal.js');
+                $this->context->controller->addJS('modules/' . $this->name . '/views/js/terminal-mapping.js');
+                $this->context->controller->addJS('modules/' . $this->name . '/views/js/terminals_map_init.js');
+            }
+            $this->context->controller->addCSS($this->_path . 'views/css/global.css');
+            $this->context->controller->addCSS($this->_path . 'views/css/three-dots.min.css');
+            $this->context->controller->addCSS($this->_path . 'views/css/terminal-mapping.css');
+        }
+    }
 
 	public function hookPayment($params)
 	{
