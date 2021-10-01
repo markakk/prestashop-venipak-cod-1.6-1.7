@@ -6,6 +6,8 @@ class VenipakCod extends PaymentModule
 {
 	private $_prefix = 'VENIPAKCOD_';
 
+    public static $_moduleDir = _PS_MODULE_DIR_ . 'venipakcod/';
+
 	public function __construct()
 	{
 		$this->name = 'venipakcod';
