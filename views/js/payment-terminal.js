@@ -162,6 +162,7 @@ function mjvp_registerSelection(selected_field_id, ajaxData = {}, params = {}) {
         var venipakCodeElement = $('[data-module-name="venipakcod"]');
         venipakCodeElement.closest('.payment-options').find('.additional-information .alert').remove();
         $('#conditions-to-approve input[type="checkbox"]').removeAttr('disabled');
+        $('#payment-confirmation button').removeAttr('disabled');
     }
 
     $.ajax(mjvp_front_controller_url,
