@@ -54,7 +54,7 @@ function codEventListener() {
                         </div>`);
                         if($('.tmjs-modal').length != 0)
                             $('.tmjs-modal').remove();
-                        venipak_custom_modal();
+                        venipak_custom_modal_cod();
                         filterEventListener();
                     }
                     else
@@ -70,7 +70,7 @@ function codEventListener() {
 function filterEventListener()
 {
     $(".mjvp-pickup-filter").on('click', e => {
-        venipak_custom_modal.tmjs.dom.addOverlay();
+        venipak_custom_modal_cod.tmjs.dom.addOverlay();
         const clickTarget = $(e.target);
         if(clickTarget.hasClass('reset'))
         {
@@ -109,7 +109,7 @@ function filterTerminalsAjax(filters)
             'filter_keys' : filters
         },
         success: function (res) {
-            venipak_custom_modal.tmjs.dom.removeOverlay();
+            venipak_custom_modal_cod.tmjs.dom.removeOverlay();
             if(typeof res.mjvp_terminals != "undefined")
             {
                 var terminals = [];
@@ -127,19 +127,19 @@ function filterTerminalsAjax(filters)
                 });
                 if(terminals.length == 0)
                 {
-                    venipak_custom_modal.tmjs.map._markerLayer.clearLayers();
+                    venipak_custom_modal_cod.tmjs.map._markerLayer.clearLayers();
                 }
                 else
                 {
-                    venipak_custom_modal.tmjs.setTerminals(terminals);
-                    venipak_custom_modal.tmjs.dom.renderTerminalList(venipak_custom_modal.tmjs.map.locations);
+                    venipak_custom_modal_cod.tmjs.setTerminals(terminals);
+                    venipak_custom_modal_cod.tmjs.dom.renderTerminalList(venipak_custom_modal_cod.tmjs.map.locations);
                 }
             }
         },
     });
 }
 
-function mjvp_registerSelection(selected_field_id, ajaxData = {}, params = {}) {
+function mjvp_registerSelectionCod(selected_field_id, ajaxData = {}, params = {}) {
     if(document.getElementById(selected_field_id))
         ajaxData.selected_terminal = document.getElementById(selected_field_id).value;
     if(document.getElementById("mjvp-pickup-country"))
@@ -224,7 +224,7 @@ $(document).on('ready', () => {
                         <div class="venipak-service-content">
                             ${res.carrier_content}
                         </div>`);
-                    venipak_custom_modal();
+                    venipak_custom_modal_cod();
                     filterEventListener();
                 }
             },

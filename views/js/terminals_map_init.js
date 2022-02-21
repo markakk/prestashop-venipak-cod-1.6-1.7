@@ -1,4 +1,4 @@
-var venipak_custom_modal = function() {
+var venipak_custom_modal_cod = function() {
     let mjvp_map_container =  document.getElementById('mjvp-pickup-select-modal');
     let tmjs = null;
 
@@ -29,11 +29,11 @@ var venipak_custom_modal = function() {
         });
         tmjs.sub('terminal-selected', function(data) {
             document.getElementById("mjvp-selected-terminal").value = data.id;
-            mjvp_registerSelection('mjvp-selected-terminal');
+            mjvp_registerSelectionCod('mjvp-selected-terminal');
             tmjs.publish('close-map-modal');
             document.querySelector('.tmjs-selected-terminal').innerHTML = '<span class="mjvp-tmjs-terminal-name">' + data.name + '</span> <span class="mjvp-tmjs-terminal-address">(' + data.address + ')</span> <span class="mjvp-tmjs-terminal-comment">' + data.city + '.</span>';
         });
     }
 
-    window['venipak_custom_modal'].tmjs = tmjs;
+    window['venipak_custom_modal_cod'].tmjs = tmjs;
 }
