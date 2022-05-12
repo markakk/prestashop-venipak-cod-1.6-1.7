@@ -256,7 +256,7 @@ class VenipakCod extends PaymentModule
         $add_content = false;
         if(version_compare(_PS_VERSION_, '1.7', '>='))
         {
-            $add_content = $this->context->controller->php_self == 'order' && $this->context->controller->getCheckoutProcess()->getSteps()[3]->isCurrent();
+            $add_content = $this->context->controller->php_self == 'order' && $this->check17PaymentStep($this->context->cart);
         }
         // 1.6
         else
@@ -332,6 +332,29 @@ class VenipakCod extends PaymentModule
             $this->context->controller->addCSS($this->_path . 'views/css/three-dots.min.css');
             $this->context->controller->addCSS($this->_path . 'views/css/terminal-mapping.css');
         }
+    }
+
+	// Separate method, as methods of gettign a checkout step on 1.7 are inconsistent among minor versions.
+    public function check17PaymentStep($cart)
+    {
+        if(version_compare(_PS_VERSION_, '1.7', '>'))
+        {
+            $rawData = Db::getInstance()->getValue(
+                'SELECT checkout_session_data FROM ' . _DB_PREFIX_ . 'cart WHERE id_cart = ' . (int) $cart->id
+            );
+            $data = json_decode($rawData, true);
+            if (!is_array($data)) {
+                $data = [];
+            }
+			
+            if((isset($data['checkout-delivery-step']) && $data['checkout-delivery-step']['step_is_complete']) &&
+                (isset($data['checkout-payment-step']) && !$data['checkout-payment-step']['step_is_complete'])
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
 	public function hookPayment($params)
