@@ -291,3 +291,8 @@ a.tmjs-select-btn:hover, a:hover.tmjs-select-btn:hover, a:focus.tmjs-select-btn:
 .tmjs-search-result {
   display: none;
 }
+
+.venipakCOD_info {
+  display: block;
+  color: red;
+}

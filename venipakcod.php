@@ -14,7 +14,7 @@ class VenipakCod extends PaymentModule
 	{
 		$this->name = 'venipakcod';
 		$this->tab = 'payments_gateways';
-		$this->version = '1.0.3';
+		$this->version = '1.0.4';
 		$this->author = 'Mijora';
 		$this->need_instance = 1;
 		$this->controllers = array('validation', 'payment');
@@ -384,11 +384,18 @@ class VenipakCod extends PaymentModule
             $this->getTemplateVarInfos($params)
         );
 
+		$info_txt = $this->l('You will be able to pay with bank card on delivery.');
+		$fee = $this->getCodFee($params['cart']);
+		if ( $fee > 0 ) {
+			$fee = (float) Tools::ps_round($fee, 2);
+			$info_txt .= '<span class="venipakCOD_info">' . sprintf($this->l('This payment method will add an additional fee (%s) to the shipping price.'), '<b>' . Tools::displayPrice($fee, $this->context->currency, false) . '</b>') . '</span>';
+		}
+
         $newOption = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
         $newOption->setModuleName($this->name)
-            ->setCallToActionText($this->l('Pay with cash on delivery (COD)'))
+            ->setCallToActionText($this->l('Pay by cash on delivery (COD)'))
             ->setAction($this->context->link->getModuleLink($this->name, 'payment', array(), true))
-            ->setAdditionalInformation($this->l('You will be able to pay with bank cash on delivery.'))
+            ->setAdditionalInformation($info_txt)
             ->setLogo(Media::getMediaPath(dirname(__FILE__) . '/views/images/logo_small.png'));
         $payment_options = [
             $newOption,
@@ -484,7 +491,8 @@ class VenipakCod extends PaymentModule
 		$currency_special = null,
 		$dont_touch_amount = false,
 		$secure_key = false,
-		Shop $shop = null
+		Shop $shop = null,
+		?string $order_reference = null
 	) {
 		$this->context->cart = new Cart($id_cart);
 		$this->context->customer = new Customer($this->context->cart->id_customer);
@@ -705,139 +713,89 @@ class VenipakCod extends PaymentModule
 					//$orderDetail->createList($order, $this->context->cart, $id_order_state);
 
 					// Construct order detail table for the email
-					$products_list = '';
+					$product_var_tpl_list = [];
 					$virtual_product = true;
-					foreach ($products as $key => $product) {
-						$price = Product::getPriceStatic((int) $product['id_product'], false, ($product['id_product_attribute'] ? (int) $product['id_product_attribute'] : null), 6, null, false, true, $product['cart_quantity'], false, (int) $order->id_customer, (int) $order->id_cart, (int) $order->{Configuration::get('PS_TAX_ADDRESS_TYPE')});
-						$price_wt = Product::getPriceStatic((int) $product['id_product'], true, ($product['id_product_attribute'] ? (int) $product['id_product_attribute'] : null), 2, null, false, true, $product['cart_quantity'], false, (int) $order->id_customer, (int) $order->id_cart, (int) $order->{Configuration::get('PS_TAX_ADDRESS_TYPE')});
+		            foreach ($products as $product) {
+		                $price = Product::getPriceStatic((int) $product['id_product'], false, ($product['id_product_attribute'] ? (int) $product['id_product_attribute'] : null), 6, null, false, true, $product['cart_quantity'], false, (int) $order->id_customer, (int) $order->id_cart, (int) $order->{Configuration::get('PS_TAX_ADDRESS_TYPE')}, $specific_price, true, true, null, true, $product['id_customization']);
+		                $price_wt = Product::getPriceStatic((int) $product['id_product'], true, ($product['id_product_attribute'] ? (int) $product['id_product_attribute'] : null), 2, null, false, true, $product['cart_quantity'], false, (int) $order->id_customer, (int) $order->id_cart, (int) $order->{Configuration::get('PS_TAX_ADDRESS_TYPE')}, $specific_price, true, true, null, true, $product['id_customization']);
 
-						$customization_quantity = 0;
-						if (isset($customized_datas[$product['id_product']][$product['id_product_attribute']])) {
-							$customization_text = '';
-							foreach ($customized_datas[$product['id_product']][$product['id_product_attribute']] as $customization) {
-								if (isset($customization['datas'][Product::CUSTOMIZE_TEXTFIELD]))
-									foreach ($customization['datas'][Product::CUSTOMIZE_TEXTFIELD] as $text)
-										$customization_text .= $text['name'] . ': ' . $text['value'] . '<br />';
+		                $product_price = Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round($price, Context::getContext()->getComputingPrecision()) : $price_wt;
 
-								if (isset($customization['datas'][Product::CUSTOMIZE_FILE]))
-									$customization_text .= sprintf(Tools::displayError('%d image(s)'), count($customization['datas'][Product::CUSTOMIZE_FILE])) . '<br />';
+		                $product_var_tpl = [
+		                    'id_product' => $product['id_product'],
+		                    'id_product_attribute' => $product['id_product_attribute'],
+		                    'reference' => $product['reference'],
+		                    'name' => $product['name'] . (isset($product['attributes']) ? ' - ' . $product['attributes'] : ''),
+		                    'price' => Tools::getContextLocale($this->context)->formatPrice($product_price * $product['quantity'], $this->context->currency->iso_code),
+		                    'quantity' => $product['quantity'],
+		                    'customization' => [],
+		                ];
 
-								$customization_text .= '---<br />';
-							}
+		                if (isset($product['price']) && $product['price']) {
+		                    $product_var_tpl['unit_price'] = Tools::getContextLocale($this->context)->formatPrice($product_price, $this->context->currency->iso_code);
+		                    $product_var_tpl['unit_price_full'] = Tools::getContextLocale($this->context)->formatPrice($product_price, $this->context->currency->iso_code)
+		                        . ' ' . $product['unity'];
+		                } else {
+		                    $product_var_tpl['unit_price'] = $product_var_tpl['unit_price_full'] = '';
+		                }
 
-							$customization_text = rtrim($customization_text, '---<br />');
+		                $customized_datas = Product::getAllCustomizedDatas((int) $order->id_cart, null, true, null, (int) $product['id_customization']);
+		                if (isset($customized_datas[$product['id_product']][$product['id_product_attribute']])) {
+		                    $product_var_tpl['customization'] = [];
+		                    foreach ($customized_datas[$product['id_product']][$product['id_product_attribute']][$order->id_address_delivery] as $customization) {
+		                        $customization_text = '';
+		                        if (isset($customization['datas'][Product::CUSTOMIZE_TEXTFIELD])) {
+		                            foreach ($customization['datas'][Product::CUSTOMIZE_TEXTFIELD] as $text) {
+		                                $customization_text .= '<strong>' . $text['name'] . '</strong>: ' . $text['value'] . '<br />';
+		                            }
+		                        }
 
-							$customization_quantity = (int) $product['customizationQuantityTotal'];
-							$products_list .=
-								'<tr style="background-color: ' . ($key % 2 ? '#DDE2E6' : '#EBECEE') . ';">
-                                <td style="padding: 0.6em 0.4em;width: 15%;">' . $product['reference'] . '</td>
-                                <td style="padding: 0.6em 0.4em;width: 30%;"><strong>' . $product['name'] . (isset($product['attributes']) ? ' - ' . $product['attributes'] : '') . ' - ' . Tools::displayError('Customized') . (!empty($customization_text) ? ' - ' . $customization_text : '') . '</strong></td>
-                                <td style="padding: 0.6em 0.4em; width: 20%;">' . Tools::displayPrice(Product::getTaxCalculationMethod() == PS_TAX_EXC ?  Tools::ps_round($price, 2) : $price_wt, $this->context->currency, false) . '</td>
-                                <td style="padding: 0.6em 0.4em; width: 15%;">' . $customization_quantity . '</td>
-                                <td style="padding: 0.6em 0.4em; width: 20%;">' . Tools::displayPrice($customization_quantity * (Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round($price, 2) : $price_wt), $this->context->currency, false) . '</td>
-                            </tr>';
-						}
+		                        if (isset($customization['datas'][Product::CUSTOMIZE_FILE])) {
+		                            $customization_text .= $this->trans('%d image(s)', [count($customization['datas'][Product::CUSTOMIZE_FILE])], 'Admin.Payment.Notification') . '<br />';
+		                        }
 
-						if (!$customization_quantity || (int) $product['cart_quantity'] > $customization_quantity)
-							$products_list .=
-								'<tr style="background-color: ' . ($key % 2 ? '#DDE2E6' : '#EBECEE') . ';">
-                                <td style="padding: 0.6em 0.4em;width: 15%;">' . $product['reference'] . '</td>
-                                <td style="padding: 0.6em 0.4em;width: 30%;"><strong>' . $product['name'] . (isset($product['attributes']) ? ' - ' . $product['attributes'] : '') . '</strong></td>
-                                <td style="padding: 0.6em 0.4em; width: 20%;">' . Tools::displayPrice(Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round($price, 2) : $price_wt, $this->context->currency, false) . '</td>
-                                <td style="padding: 0.6em 0.4em; width: 15%;">' . ((int) $product['cart_quantity'] - $customization_quantity) . '</td>
-                                <td style="padding: 0.6em 0.4em; width: 20%;">' . Tools::displayPrice(((int) $product['cart_quantity'] - $customization_quantity) * (Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round($price, 2) : $price_wt), $this->context->currency, false) . '</td>
-                            </tr>';
+		                        $customization_quantity = (int) $customization['quantity'];
 
-						// Check if is not a virutal product for the displaying of shipping
-						if (!$product['is_virtual'])
-							$virtual_product &= false;
-					} // end foreach ($products)
+		                        $product_var_tpl['customization'][] = [
+		                            'customization_text' => $customization_text,
+		                            'customization_quantity' => $customization_quantity,
+		                            'quantity' => Tools::getContextLocale($this->context)->formatPrice($customization_quantity * $product_price, $this->context->currency->iso_code),
+		                        ];
+		                    }
+		                }
 
-					$cart_rules_list = '';
-					foreach ($cart_rules as $cart_rule) {
-						$package = array('id_carrier' => $order->id_carrier, 'id_address' => $order->id_address_delivery, 'products' => $order->product_list);
-						$values = array(
-							'tax_incl' => $cart_rule['obj']->getContextualValue(true, $this->context, CartRule::FILTER_ACTION_ALL, $package),
-							'tax_excl' => $cart_rule['obj']->getContextualValue(false, $this->context, CartRule::FILTER_ACTION_ALL, $package)
-						);
+		                $product_var_tpl_list[] = $product_var_tpl;
+		                // Check if is not a virtual product for the displaying of shipping
+		                if (!$product['is_virtual']) {
+		                    $virtual_product &= false;
+		                }
+		            }
 
-						// If the reduction is not applicable to this order, then continue with the next one
-						if (!$values['tax_excl'])
-							continue;
+					$product_list_txt = '';
+			        $product_list_html = '';
+			        if (count($product_var_tpl_list) > 0) {
+			            $product_list_txt = $this->getEmailTemplateContent('order_conf_product_list.txt', Mail::TYPE_TEXT, $product_var_tpl_list);
+			            $product_list_html = $this->getEmailTemplateContent('order_conf_product_list.tpl', Mail::TYPE_HTML, $product_var_tpl_list);
+			        }
 
-						$order->addCartRule($cart_rule['obj']->id, $cart_rule['obj']->name, $values);
+			        $total_reduction_value_ti = 0;
+		            $total_reduction_value_tex = 0;
 
-						/* IF
-                        ** - This is not multi-shipping
-                        ** - The value of the voucher is greater than the total of the order
-                        ** - Partial use is allowed
-                        ** - This is an "amount" reduction, not a reduction in % or a gift
-                        ** THEN
-                        ** The voucher is cloned with a new value corresponding to the remainder
-                        */
-						if (count($order_list) == 1 && $values['tax_incl'] > $order->total_products_wt && $cart_rule['obj']->partial_use == 1 && $cart_rule['obj']->reduction_amount > 0) {
-							// Create a new voucher from the original
-							$voucher = new CartRule($cart_rule['obj']->id); // We need to instantiate the CartRule without lang parameter to allow saving it
-							unset($voucher->id);
+		            $cart_rules_list = $this->createOrderCartRules(
+		                $order,
+		                $this->context->cart,
+		                $order_list,
+		                $total_reduction_value_ti,
+		                $total_reduction_value_tex,
+		                $id_order_state
+		            );
 
-							// Set a new voucher code
-							$voucher->code = empty($voucher->code) ? substr(md5($order->id . '-' . $order->id_customer . '-' . $cart_rule['obj']->id), 0, 16) : $voucher->code . '-2';
-							if (preg_match('/\-([0-9]{1,2})\-([0-9]{1,2})$/', $voucher->code, $matches) && $matches[1] == $matches[2])
-								$voucher->code = preg_replace('/' . $matches[0] . '$/', '-' . (intval($matches[1]) + 1), $voucher->code);
-
-							// Set the new voucher value
-							if ($voucher->reduction_tax)
-								$voucher->reduction_amount = $values['tax_incl'] - $order->total_products_wt;
-							else
-								$voucher->reduction_amount = $values['tax_excl'] - $order->total_products;
-
-							$voucher->id_customer = $order->id_customer;
-							$voucher->quantity = 1;
-							if ($voucher->add()) {
-								// If the voucher has conditions, they are now copied to the new voucher
-								CartRule::copyConditions($cart_rule['obj']->id, $voucher->id);
-
-								$params = array(
-									'{voucher_amount}' => Tools::displayPrice($voucher->reduction_amount, $this->context->currency, false),
-									'{voucher_num}' => $voucher->code,
-									'{firstname}' => $this->context->customer->firstname,
-									'{lastname}' => $this->context->customer->lastname,
-									'{id_order}' => $order->reference,
-									'{order_name}' => $order->getUniqReference()
-								);
-								Mail::Send(
-									(int) $order->id_lang,
-									'voucher',
-									sprintf(Mail::l('New voucher regarding your order %s', (int) $order->id_lang), $order->reference),
-									$params,
-									$this->context->customer->email,
-									$this->context->customer->firstname . ' ' . $this->context->customer->lastname,
-									null,
-									null,
-									null,
-									null,
-									_PS_MAIL_DIR_,
-									false,
-									(int) $order->id_shop
-								);
-							}
-						}
-
-						if ($id_order_state != Configuration::get('PS_OS_ERROR') && $id_order_state != Configuration::get('PS_OS_CANCELED') && !in_array($cart_rule['obj']->id, $cart_rule_used)) {
-							$cart_rule_used[] = $cart_rule['obj']->id;
-
-							// Create a new instance of Cart Rule without id_lang, in order to update its quantity
-							$cart_rule_to_update = new CartRule($cart_rule['obj']->id);
-							$cart_rule_to_update->quantity = max(0, $cart_rule_to_update->quantity - 1);
-							$cart_rule_to_update->update();
-						}
-
-						$cart_rules_list .= '
-                        <tr>
-                            <td colspan="4" style="padding:0.6em 0.4em;text-align:right">' . Tools::displayError('Voucher name:') . ' ' . $cart_rule['obj']->name . '</td>
-                            <td style="padding:0.6em 0.4em;text-align:right">' . ($values['tax_incl'] != 0.00 ? '-' : '') . Tools::displayPrice($values['tax_incl'], $this->context->currency, false) . '</td>
-                        </tr>';
-					}
+		            $cart_rules_list_txt = '';
+		            $cart_rules_list_html = '';
+		            if (count($cart_rules_list) > 0) {
+		                $cart_rules_list_txt = $this->getEmailTemplateContent('order_conf_cart_rules.txt', Mail::TYPE_TEXT, $cart_rules_list);
+		                $cart_rules_list_html = $this->getEmailTemplateContent('order_conf_cart_rules.tpl', Mail::TYPE_HTML, $cart_rules_list);
+		            }
 
 					// Specify order id for message
 					$old_message = Message::getMessageByCartId((int) $this->context->cart->id);
@@ -945,17 +903,20 @@ class VenipakCod extends PaymentModule
 							'{invoice_phone}' => ($invoice->phone) ? $invoice->phone : $invoice->phone_mobile,
 							'{invoice_other}' => $invoice->other,
 							'{order_name}' => $order->getUniqReference(),
-							'{date}' => Tools::displayDate(date('Y-m-d H:i:s'), (int) $order->id_lang, 1),
+							'{date}' => (version_compare(_PS_VERSION_, '8.0', '>=')) ? Tools::displayDate(date('Y-m-d H:i:s'), true) : Tools::displayDate(date('Y-m-d H:i:s'), (int) $order->id_lang, true),
 							'{carrier}' => $virtual_product ? Tools::displayError('No carrier') : $carrier->name,
 							'{payment}' => $order->payment,
-							'{products}' => $this->formatProductAndVoucherForEmail($products_list),
-							'{discounts}' => $this->formatProductAndVoucherForEmail($cart_rules_list),
+							'{products}' => $product_list_html,
+							'{products_txt}' => $product_list_txt,
+							'{discounts}' => $cart_rules_list_html,
+							'{discounts_txt}' => $cart_rules_list_txt,
 							'{total_paid}' => Tools::displayPrice($order->total_paid, $this->context->currency, false),
 							'{total_tax_paid}' => Tools::displayPrice(($order->total_paid_tax_incl - $order->total_paid_tax_excl), $this->context->currency, false),
 							'{total_products}' => Tools::displayPrice($order->total_paid - $order->total_shipping - $order->total_wrapping + $order->total_discounts, $this->context->currency, false),
 							'{total_discounts}' => Tools::displayPrice($order->total_discounts, $this->context->currency, false),
 							'{total_shipping}' => Tools::displayPrice($order->total_shipping, $this->context->currency, false),
-							'{total_wrapping}' => Tools::displayPrice($order->total_wrapping, $this->context->currency, false)
+							'{total_wrapping}' => Tools::displayPrice($order->total_wrapping, $this->context->currency, false),
+							'{recycled_packaging_label}' => $order->recyclable ? $this->trans('Yes', [], 'Shop.Theme.Global') : $this->trans('No', [], 'Shop.Theme.Global'),
 						);
 
 						if (is_array($extra_vars))
@@ -1013,5 +974,11 @@ class VenipakCod extends PaymentModule
 			Logger::addLog($error, 4, '0000001', 'Cart', intval($this->context->cart->id));
 			die($error);
 		}
+	}
+
+	public function formatProductAndVoucherForEmail($content)
+	{
+		Tools::displayAsDeprecated();
+		return $content;
 	}
 }
