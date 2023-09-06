@@ -14,7 +14,7 @@ class VenipakCod extends PaymentModule
 	{
 		$this->name = 'venipakcod';
 		$this->tab = 'payments_gateways';
-		$this->version = '1.0.3';
+		$this->version = '1.0.4';
 		$this->author = 'Mijora';
 		$this->need_instance = 1;
 		$this->controllers = array('validation', 'payment');
